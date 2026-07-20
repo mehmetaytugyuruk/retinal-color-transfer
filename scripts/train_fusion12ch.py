@@ -108,14 +108,16 @@ class Fusion12ChDataset(Dataset):
         age_mean: float,
         age_std: float,
         augment: bool = False,
+        lds_weights: dict[int, float] | None = None,
     ) -> None:
-        self.frame = manifest.reset_index(drop=True)
-        self.cache_root = cache_root
-        self.mean = torch.tensor(channel_mean, dtype=torch.float32).view(12, 1, 1)
-        self.std  = torch.tensor(channel_std,  dtype=torch.float32).view(12, 1, 1)
-        self.age_mean = age_mean
-        self.age_std  = age_std
-        self.augment  = augment
+        self.frame       = manifest.reset_index(drop=True)
+        self.cache_root  = cache_root
+        self.mean        = torch.tensor(channel_mean, dtype=torch.float32).view(12, 1, 1)
+        self.std         = torch.tensor(channel_std,  dtype=torch.float32).view(12, 1, 1)
+        self.age_mean    = age_mean
+        self.age_std     = age_std
+        self.augment     = augment
+        self.lds_weights = lds_weights  # dict[int, float] | None
 
     def __len__(self) -> int:
         return len(self.frame)
@@ -146,10 +148,12 @@ class Fusion12ChDataset(Dataset):
         tensor = (tensor - self.mean) / self.std
 
         age = float(row["age"])
+        weight = float(self.lds_weights.get(int(age), 1.0)) if self.lds_weights else 1.0
         return {
-            "image":  tensor,
-            "target": torch.tensor((age - self.age_mean) / self.age_std, dtype=torch.float32),
-            "age":    torch.tensor(age, dtype=torch.float32),
+            "image":   tensor,
+            "target":  torch.tensor((age - self.age_mean) / self.age_std, dtype=torch.float32),
+            "age":     torch.tensor(age, dtype=torch.float32),
+            "weight":  torch.tensor(weight, dtype=torch.float32),
             "image_id": image_id,
         }
 
@@ -188,18 +192,24 @@ def build_model(allow_weight_download: bool = False) -> nn.Module:
 # LDS (label-distribution smoothing) sample weights
 # ---------------------------------------------------------------------------
 
-def compute_lds_weights(ages: pd.Series, sigma: float = 2.0) -> dict[int, float]:
+def compute_lds_weights(
+    ages: pd.Series,
+    sigma: float = 2.0,
+    mode: str = "reflect",
+    truncate: float = 4.0,
+    epsilon: float = 1e-5,
+) -> dict[int, float]:
+    """Mirror of retinal_color_transfer.training.objectives.lds_weights."""
     from scipy.ndimage import gaussian_filter1d
     min_age, max_age = int(ages.min()), int(ages.max())
-    bins = np.zeros(max_age - min_age + 1)
-    for a in ages:
-        bins[int(a) - min_age] += 1
-    smoothed = gaussian_filter1d(bins, sigma=sigma)
-    smoothed = np.maximum(smoothed, 1e-5)
-    weights = {}
-    for i, age in enumerate(range(min_age, max_age + 1)):
-        weights[age] = float(1.0 / smoothed[i])
-    return weights
+    bins = np.arange(min_age, max_age + 1)
+    counts = np.zeros(len(bins), dtype=np.float64)
+    for age, count in ages.astype(int).value_counts().items():
+        counts[int(age) - min_age] = float(count)
+    smoothed = gaussian_filter1d(counts, sigma=sigma, mode=mode, truncate=truncate)
+    weights  = 1.0 / (smoothed + epsilon)
+    weights  = weights / weights.mean()  # normalize so mean weight == 1
+    return {int(age): float(w) for age, w in zip(bins, weights)}
 
 
 # ---------------------------------------------------------------------------
@@ -342,31 +352,14 @@ def main():
     age_std  = float(train_df["age"].std())
     print(f"Age stats — mean: {age_mean:.4f}, std: {age_std:.4f}")
 
-    # LDS weights
-    lds_weights = compute_lds_weights(train_df["age"])
-
     # Datasets & loaders
+    ldsw = compute_lds_weights(train_df["age"])
     train_ds = Fusion12ChDataset(train_df, args.cache_root, ch_mean, ch_std,
-                                  age_mean, age_std, augment=True)
+                                  age_mean, age_std, augment=True,  lds_weights=ldsw)
     val_ds   = Fusion12ChDataset(val_df,   args.cache_root, ch_mean, ch_std,
                                   age_mean, age_std, augment=False)
     test_ds  = Fusion12ChDataset(test_df,  args.cache_root, ch_mean, ch_std,
                                   age_mean, age_std, augment=False)
-
-    # Add LDS weights to train dataset items
-    train_ds.lds_weights = lds_weights
-
-    # Monkey-patch __getitem__ to include sample weight
-    _orig_getitem = train_ds.__getitem__.__func__
-
-    def _weighted_getitem(self, idx):
-        item = _orig_getitem(self, idx)
-        age = int(self.frame.iloc[idx]["age"])
-        item["weight"] = torch.tensor(self.lds_weights.get(age, 1.0), dtype=torch.float32)
-        return item
-
-    import types
-    train_ds.__getitem__ = types.MethodType(_weighted_getitem, train_ds)
 
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True,
                               num_workers=args.num_workers, pin_memory=True)
