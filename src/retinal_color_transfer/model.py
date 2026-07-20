@@ -56,3 +56,57 @@ def build_resnet50_regressor(
     for parameter in model.parameters():
         parameter.requires_grad = True
     return model
+
+
+def build_resnet50_12ch_regressor(
+    *,
+    weights: str | None = "imagenet",
+    allow_weight_download: bool = False,
+    in_channels: int = 12,
+) -> nn.Module:
+    """Build a ResNet-50 regressor that accepts ``in_channels`` input channels.
+
+    The standard pretrained conv1 kernel (shape [64, 3, 7, 7]) is expanded to
+    [64, in_channels, 7, 7] by repeating the 3-channel weights
+    ``in_channels // 3`` times and scaling each copy by ``3 / in_channels``
+    so that the expected pre-activation magnitude is preserved.
+
+    Args:
+        weights: ``'imagenet'`` to load ImageNet-pretrained weights (default),
+            ``'none'`` or ``None`` to start from random initialisation.
+        allow_weight_download: When ``False`` (default) the function raises if
+            the pretrained checkpoint is not already cached locally.
+        in_channels: Total number of input channels. Must be a positive
+            multiple of 3 (default 12).
+    """
+    if in_channels <= 0 or in_channels % 3 != 0:
+        raise ValueError(f"in_channels must be a positive multiple of 3, got {in_channels}")
+
+    # Build the standard 3-channel model first to get pretrained weights.
+    base = build_resnet50_regressor(weights=weights, allow_weight_download=allow_weight_download)
+
+    if in_channels == 3:
+        return base
+
+    # Adapt conv1: [64, 3, 7, 7] → [64, in_channels, 7, 7]
+    old_conv = base.conv1
+    new_conv = nn.Conv2d(
+        in_channels,
+        old_conv.out_channels,
+        kernel_size=old_conv.kernel_size,
+        stride=old_conv.stride,
+        padding=old_conv.padding,
+        bias=old_conv.bias is not None,
+    )
+
+    repeats = in_channels // 3
+    scale = 3.0 / in_channels  # keeps expected pre-activation magnitude
+    with torch.no_grad():
+        new_conv.weight.copy_(
+            old_conv.weight.repeat(1, repeats, 1, 1) * scale
+        )
+        if old_conv.bias is not None:
+            new_conv.bias.copy_(old_conv.bias)
+
+    base.conv1 = new_conv
+    return base
