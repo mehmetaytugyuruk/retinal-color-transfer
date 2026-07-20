@@ -206,44 +206,61 @@ def compute_lds_weights(ages: pd.Series, sigma: float = 2.0) -> dict[int, float]
 # Training loop
 # ---------------------------------------------------------------------------
 
-def train_one_epoch(model, loader, optimizer, device, age_std, grad_clip):
+def train_one_epoch(model, loader, optimizer, scaler, device, grad_clip,
+                    autocast_enabled, autocast_dtype):
     model.train()
     total_loss = 0.0
+    total_examples = 0
     for batch in loader:
-        images  = batch["image"].to(device)
-        targets = batch["target"].to(device)
+        images  = batch["image"].to(device, non_blocking=True)
+        targets = batch["target"].to(device, non_blocking=True)
         weights = batch.get("weight")
 
-        optimizer.zero_grad()
-        preds = model(images).squeeze(1)
-        loss = F.smooth_l1_loss(preds, targets, reduction="none")
-        if weights is not None:
-            w = weights.to(device)
-            w = w / w.sum() * len(w)
-            loss = (loss * w).mean()
-        else:
-            loss = loss.mean()
-        loss.backward()
+        optimizer.zero_grad(set_to_none=True)
+        with torch.autocast(device_type=device.type, dtype=autocast_dtype,
+                            enabled=autocast_enabled):
+            preds = model(images).squeeze(1)
+            loss  = F.smooth_l1_loss(preds, targets, reduction="none")
+            if weights is not None:
+                w = weights.to(device, non_blocking=True)
+                w = w / w.sum() * len(w)
+                loss = (loss * w).mean()
+            else:
+                loss = loss.mean()
+
+        scaler.scale(loss).backward()
+        scaler.unscale_(optimizer)
         if grad_clip:
             torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-        optimizer.step()
-        total_loss += loss.item()
-    return total_loss / len(loader)
+        scaler.step(optimizer)
+        scaler.update()
+
+        batch_size = targets.numel()
+        total_loss += float(loss.detach().cpu()) * batch_size
+        total_examples += batch_size
+    return total_loss / max(total_examples, 1)
 
 
 @torch.no_grad()
-def evaluate(model, loader, device, age_mean, age_std):
+def evaluate(model, loader, device, age_mean, age_std,
+             autocast_enabled=False, autocast_dtype=None):
     model.eval()
     all_preds, all_true, all_ids = [], [], []
-    total_loss = 0.0
+    total_loss    = 0.0
+    total_examples = 0
     for batch in loader:
-        images  = batch["image"].to(device)
-        targets = batch["target"].to(device)
-        preds   = model(images).squeeze(1)
-        loss    = F.smooth_l1_loss(preds, targets).item()
-        total_loss += loss
+        images  = batch["image"].to(device, non_blocking=True)
+        targets = batch["target"].to(device, non_blocking=True)
+        with torch.autocast(device_type=device.type,
+                            dtype=autocast_dtype, enabled=autocast_enabled):
+            preds = model(images).squeeze(1)
+            loss  = F.smooth_l1_loss(preds, targets, reduction="mean")
 
-        pred_ages = preds.cpu() * age_std + age_mean
+        batch_size = targets.numel()
+        total_loss    += float(loss.detach().cpu()) * batch_size
+        total_examples += batch_size
+
+        pred_ages = preds.detach().cpu().float() * age_std + age_mean
         true_ages = batch["age"]
         all_preds.extend(pred_ages.tolist())
         all_true.extend(true_ages.tolist())
@@ -252,7 +269,7 @@ def evaluate(model, loader, device, age_mean, age_std):
     mae = float(np.mean(np.abs(np.array(all_preds) - np.array(all_true))))
     return {
         "mae": mae,
-        "smooth_l1_loss": total_loss / len(loader),
+        "smooth_l1_loss": total_loss / max(total_examples, 1),
         "predictions": list(zip(all_ids, all_true, all_preds)),
     }
 
@@ -372,9 +389,12 @@ def main():
     )
 
     # Mixed precision
-    use_amp = args.mixed_precision != "none" and device.type == "cuda"
+    use_amp   = args.mixed_precision != "none" and device.type == "cuda"
     amp_dtype = torch.float16 if args.mixed_precision == "fp16" else torch.bfloat16
-    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+    try:
+        scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
+    except TypeError:
+        scaler = torch.amp.GradScaler(enabled=use_amp)
 
     # Resume from latest checkpoint if available
     start_epoch = 1
@@ -398,12 +418,13 @@ def main():
     print(f"Starting training: epochs {start_epoch}→{args.epochs}, device={device}")
 
     for epoch in range(start_epoch, args.epochs + 1):
-        with torch.cuda.amp.autocast(enabled=use_amp, dtype=amp_dtype):
-            train_loss = train_one_epoch(
-                model, train_loader, optimizer, device, age_std, args.grad_clip
-            )
+        train_loss = train_one_epoch(
+            model, train_loader, optimizer, scaler, device,
+            args.grad_clip, use_amp, amp_dtype,
+        )
 
-        val_metrics = evaluate(model, val_loader, device, age_mean, age_std)
+        val_metrics = evaluate(model, val_loader, device, age_mean, age_std,
+                               autocast_enabled=use_amp, autocast_dtype=amp_dtype)
         val_mae  = val_metrics["mae"]
         val_loss = val_metrics["smooth_l1_loss"]
 
