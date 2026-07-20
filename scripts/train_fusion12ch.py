@@ -249,6 +249,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--weight-decay",         default=1e-4, type=float)
     p.add_argument("--grad-clip",            default=1.0,  type=float)
     p.add_argument("--seed",                 default=42,   type=int)
+    p.add_argument("--scheduler",            default="reduce_lr_on_plateau",
+                   choices=["reduce_lr_on_plateau", "cosine_warmup"],
+                   help="'reduce_lr_on_plateau' (default, matches all study models) or "
+                        "'cosine_warmup' (linear warmup + cosine annealing, better for 12-ch)")
+    p.add_argument("--warmup-epochs",        default=5,    type=int,
+                   help="Linear warmup duration (only used with --scheduler cosine_warmup)")
     p.add_argument("--mixed-precision",      default="fp16",
                    choices=["fp16", "bf16", "none"])
     p.add_argument("--allow-weight-download", action="store_true")
@@ -334,14 +340,35 @@ def main() -> None:
         in_channels=12,
     ).to(device)
 
-    # Optimiser & scheduler (same config as all study models)
+    # Optimiser & scheduler
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay,
         betas=(0.9, 0.999), eps=1e-8,
     )
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="min", factor=0.5, patience=5, min_lr=1e-7,
-    )
+
+    if args.scheduler == "cosine_warmup":
+        warmup = torch.optim.lr_scheduler.LinearLR(
+            optimizer,
+            start_factor=1e-7 / args.lr,  # near-zero start
+            end_factor=1.0,
+            total_iters=args.warmup_epochs,
+        )
+        cosine = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=max(args.epochs - args.warmup_epochs, 1),
+            eta_min=1e-7,
+        )
+        scheduler = torch.optim.lr_scheduler.SequentialLR(
+            optimizer,
+            schedulers=[warmup, cosine],
+            milestones=[args.warmup_epochs],
+        )
+        print(f"Scheduler: LinearWarmup({args.warmup_epochs} ep) + CosineAnnealingLR({args.epochs - args.warmup_epochs} ep)")
+    else:
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode="min", factor=0.5, patience=5, min_lr=1e-7,
+        )
+        print("Scheduler: ReduceLROnPlateau(factor=0.5, patience=5)")
 
     # Mixed precision
     use_amp   = args.mixed_precision != "none" and device.type == "cuda"
@@ -381,7 +408,12 @@ def main() -> None:
             model, val_loader, device, stats, use_amp, amp_dtype,
         )
         val_mae = float(np.mean(np.abs(np.array(vp) - np.array(vt))))
-        scheduler.step(val_loss)
+
+        # Scheduler step — cosine_warmup is epoch-based, reduce_lr_on_plateau needs val_loss
+        if args.scheduler == "cosine_warmup":
+            scheduler.step()
+        else:
+            scheduler.step(val_loss)
 
         row = {
             "epoch":         epoch,
