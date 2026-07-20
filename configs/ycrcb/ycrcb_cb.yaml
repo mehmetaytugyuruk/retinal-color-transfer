@@ -1,0 +1,16 @@
+representation:
+  name: ycrcb_cb
+  approved_for_cache_build: true
+  params: {}
+  tensor_scaling:
+    stored_dtype: uint8
+    stored_range: [0, 255]
+    canonical_scaling: uint8_divide_by_255
+    canonical_range: [0.0, 1.0]
+    channel_names: [Cb, Cb, Cb]
+    cache_extension: .png
+    is_binary: false
+    repeated_from_single_channel: true
+  channel_order: repeated_OpenCV_Cb
+  numeric_range: [0, 255]
+  notes: OpenCV YCrCb Cb channel repeated to three channels for chroma-channel ablation.

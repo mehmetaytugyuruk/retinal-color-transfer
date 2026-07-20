@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "retinal-color-transfer"
+version = "0.1.0"
+description = "Retinal age-estimation study of color-space diversity and matched ensemble controls."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.24",
+  "pandas>=2.0",
+  "PyYAML>=6.0",
+  "opencv-python>=4.8",
+  "scipy>=1.10",
+  "torch>=2.2",
+  "torchvision>=0.17",
+  "Pillow>=10",
+  "tqdm>=4.66",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

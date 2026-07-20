@@ -1,0 +1,16 @@
+representation:
+  name: rgb_b
+  approved_for_cache_build: true
+  params: {}
+  tensor_scaling:
+    stored_dtype: uint8
+    stored_range: [0, 255]
+    canonical_scaling: uint8_divide_by_255
+    canonical_range: [0.0, 1.0]
+    channel_names: [B, B, B]
+    cache_extension: .png
+    is_binary: false
+    repeated_from_single_channel: true
+  channel_order: repeated_B
+  numeric_range: [0, 255]
+  notes: RGB blue channel repeated to three channels for single-channel ablation.

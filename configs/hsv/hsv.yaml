@@ -1,0 +1,22 @@
+representation:
+  name: hsv
+  approved_for_cache_build: true
+  params: {}
+  tensor_scaling:
+    stored_dtype: uint8
+    stored_range:
+      h: [0, 179]
+      s: [0, 255]
+      v: [0, 255]
+    canonical_scaling: hsv_uint8_h_over_179_sv_over_255
+    canonical_range: [0.0, 1.0]
+    channel_names: [H, S, V]
+    cache_extension: .png
+    is_binary: false
+    repeated_from_single_channel: false
+  channel_order: OpenCV_HSV
+  numeric_range:
+    h: [0, 179]
+    s: [0, 255]
+    v: [0, 255]
+  notes: OpenCV COLOR_RGB2HSV uint8 hue range is [0, 179].

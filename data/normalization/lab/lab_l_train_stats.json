@@ -1,0 +1,39 @@
+{
+  "channel_mean": [
+    0.32627522826899025,
+    0.32627522826899025,
+    0.32627522826899025
+  ],
+  "channel_std": [
+    0.23386799021862717,
+    0.23386799021862717,
+    0.23386799021862717
+  ],
+  "normalization_fingerprint": "5b2ce594138b4b22983b14d9cacacbca737afa2c90e393546094e968e3d9c39b",
+  "normalization_policy": "representation_train_channel_stats",
+  "num_images": 6902,
+  "num_pixels": 346314752,
+  "representation": "lab_l",
+  "representation_fingerprint": "988d6658f835482a6ec5cbc170ae0d8bd9a68f8c37a1a8044f9f820c2ab710a2",
+  "split_used": "train",
+  "tensor_scaling": {
+    "cache_extension": ".png",
+    "canonical_range": [
+      0.0,
+      1.0
+    ],
+    "canonical_scaling": "uint8_divide_by_255",
+    "channel_names": [
+      "L_encoded",
+      "L_encoded",
+      "L_encoded"
+    ],
+    "is_binary": false,
+    "repeated_from_single_channel": true,
+    "stored_dtype": "uint8",
+    "stored_range": [
+      0,
+      255
+    ]
+  }
+}

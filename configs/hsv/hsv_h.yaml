@@ -1,0 +1,16 @@
+representation:
+  name: hsv_h
+  approved_for_cache_build: true
+  params: {}
+  tensor_scaling:
+    stored_dtype: uint8
+    stored_range: [0, 179]
+    canonical_scaling: uint8_divide_by_255
+    canonical_range: [0.0, 0.7019607843137254]
+    channel_names: [H, H, H]
+    cache_extension: .png
+    is_binary: false
+    repeated_from_single_channel: true
+  channel_order: repeated_OpenCV_H
+  numeric_range: [0, 179]
+  notes: OpenCV HSV H channel repeated to three channels for hue-channel ablation.

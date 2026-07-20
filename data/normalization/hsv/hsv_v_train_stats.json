@@ -1,0 +1,39 @@
+{
+  "channel_mean": [
+    0.4849779119818626,
+    0.4849779119818626,
+    0.4849779119818626
+  ],
+  "channel_std": [
+    0.34056471654151427,
+    0.34056471654151427,
+    0.34056471654151427
+  ],
+  "normalization_fingerprint": "baca6563ca28305527eab9aa718409120046c5f1225ae4082894e501b22a82cb",
+  "normalization_policy": "representation_train_channel_stats",
+  "num_images": 6902,
+  "num_pixels": 346314752,
+  "representation": "hsv_v",
+  "representation_fingerprint": "e7bc4f597e319e2df8df999e119c52603dd45d61fe448103bd669716d0b7a7a5",
+  "split_used": "train",
+  "tensor_scaling": {
+    "cache_extension": ".png",
+    "canonical_range": [
+      0.0,
+      1.0
+    ],
+    "canonical_scaling": "uint8_divide_by_255",
+    "channel_names": [
+      "V",
+      "V",
+      "V"
+    ],
+    "is_binary": false,
+    "repeated_from_single_channel": true,
+    "stored_dtype": "uint8",
+    "stored_range": [
+      0,
+      255
+    ]
+  }
+}

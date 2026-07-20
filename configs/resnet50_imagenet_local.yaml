@@ -1,0 +1,67 @@
+augmentation:
+  eval:
+    enabled: false
+  train:
+    fill: 0
+    horizontal_flip_probability: 0.5
+    interpolation: bilinear
+    rotation_degrees: 10
+    stage: PIL_image_before_tensor
+cache:
+  base_rgb_root: caches/rgb/rgb
+  representation_root: caches/rgb/rgb
+checkpoint_selection:
+  metric: validation_mae
+  mode: min
+  strict_improvement: true
+data:
+  data_root: .
+  test_manifest: data/manifests/test.csv
+  train_manifest: data/manifests/train.csv
+  val_manifest: data/manifests/validation.csv
+early_stopping:
+  enabled: false
+experiment:
+  name: resnet50_imagenet_template
+  output_dir: models/rgb/resnet50_imagenet_template
+lds:
+  enabled: true
+  epsilon: 1.0e-05
+  mode: reflect
+  sigma: 2.0
+  truncate: 4.0
+model:
+  allow_weight_download: false
+  architecture: resnet50
+  fully_finetune: true
+  weights: imagenet
+normalization:
+  policy: representation_train_channel_stats
+  statistics_path: data/normalization/rgb/rgb_train_stats.json
+optimization:
+  batch_size: 32
+  betas:
+  - 0.9
+  - 0.999
+  epochs: 80
+  eps: 1.0e-08
+  gradient_clip_norm: 1.0
+  learning_rate: 0.0001
+  optimizer: AdamW
+  weight_decay: 0.0001
+representation_config: configs/rgb/rgb.yaml
+runtime:
+  device: auto
+  num_workers: 4
+  pin_memory: false
+  prefetch_factor: 2
+  seed: 42
+scheduler:
+  factor: 0.5
+  min_lr: 1.0e-07
+  mode: min
+  monitor: validation_smooth_l1_loss
+  name: ReduceLROnPlateau
+  patience: 5
+target_scaling:
+  use_training_mean_sample_std: true

@@ -1,0 +1,16 @@
+representation:
+  name: ycrcb
+  approved_for_cache_build: true
+  params: {}
+  tensor_scaling:
+    stored_dtype: uint8
+    stored_range: [0, 255]
+    canonical_scaling: uint8_divide_by_255
+    canonical_range: [0.0, 1.0]
+    channel_names: [Y, Cr, Cb]
+    cache_extension: .png
+    is_binary: false
+    repeated_from_single_channel: false
+  channel_order: OpenCV_Y_Cr_Cb
+  numeric_range: [0, 255]
+  notes: Implementation uses OpenCV Y, Cr, Cb ordering even when the research report uses broader YCbCr terminology.

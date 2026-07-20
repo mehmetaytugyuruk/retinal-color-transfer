@@ -1,0 +1,16 @@
+representation:
+  name: custom_lab_a_rgb_g_lab_b
+  approved_for_cache_build: true
+  params: {}
+  tensor_scaling:
+    stored_dtype: uint8
+    stored_range: [0, 255]
+    canonical_scaling: uint8_divide_by_255
+    canonical_range: [0.0, 1.0]
+    channel_names: [Lab_a_encoded, RGB_G, Lab_b_encoded]
+    cache_extension: .png
+    is_binary: false
+    repeated_from_single_channel: false
+  channel_order: OpenCV_Lab_a__RGB_G__OpenCV_Lab_b
+  numeric_range: [0, 255]
+  notes: Candidate Custom3 representation ordered as OpenCV Lab-a, RGB-G, OpenCV Lab-b.
