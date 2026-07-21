@@ -38,3 +38,6 @@ htmlcov/
 *.pt
 *.pth
 *.zip
+
+# Generated figure assets
+/assets/
