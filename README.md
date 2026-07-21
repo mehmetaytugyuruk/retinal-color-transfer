@@ -33,6 +33,12 @@ Both ensembles average four age predictions, have the same inference cost, and
 share no model. The comparison concerns these two fixed ensembles; it is not an
 estimate of performance over a population of arbitrary training seeds.
 
+An additional **early fusion experiment (Ensemble²)** concatenates all four
+color-space representations into a single 12-channel input tensor and trains
+one ResNet-50 on the joint representation. This is a supplementary experiment
+comparing early-fusion (input concatenation) against late-fusion (prediction
+averaging) for multi-color-space age estimation.
+
 ## Dataset and Splits
 
 The tracked manifests define patient-level train, validation, and test splits.
@@ -58,7 +64,7 @@ study, provide the same source dataset with paths matching the manifests:
 
 ## Training Protocol
 
-All models use:
+All 24 canonical models use:
 
 - ImageNet-pretrained ResNet-50, fully fine-tuned
 - 80 epochs and batch size 32
@@ -74,6 +80,11 @@ The shared training template is
 [`configs/resnet50_imagenet_local.yaml`](configs/resnet50_imagenet_local.yaml).
 Representation contracts under `configs/` lock channel order, stored dtype,
 numeric range, cache format, and tensor scaling.
+
+The Ensemble² model follows the same protocol with one architectural difference:
+its first convolutional layer accepts 12 channels (RGB + Lab + HSV + YCrCb).
+Pretrained `conv1` weights are adapted by repeating them four times and scaling
+by `1/4` to preserve the expected activation magnitude.
 
 ## Primary Results
 
@@ -126,6 +137,23 @@ a single non-RGB model outperforming RGB.
 
 No non-RGB full representation outperforms RGB on the test split.
 
+### Early fusion (Ensemble²)
+
+A single ResNet-50 trained on all four color spaces concatenated into a
+12-channel input tensor, using the same training protocol as the canonical
+24 models (seed 42, ReduceLROnPlateau, 80 epochs).
+
+| Model | Validation MAE | Test MAE |
+| --- | ---: | ---: |
+| Ensemble² (12-ch early fusion) | 5.6764 | 5.2039 |
+
+Ensemble² does not outperform RGB (test MAE 4.9067) or Color4-42 (test MAE
+4.5983). This is consistent with the observation that the four color spaces
+are mathematically invertible transformations of each other, limiting the
+additional information available to a single jointly-trained model. Late
+fusion via independent prediction averaging (Color4-42) remains the more
+effective combination strategy.
+
 ### Custom3 hybrids
 
 The candidates were fixed before training. Each is a single three-channel
@@ -168,17 +196,20 @@ single-channel model is worse than full RGB.
 
 ```text
 retinal-color-transfer/
-├── configs/                     Representation contracts and training template
+├── configs/                      Representation contracts and training template
 ├── data/
-│   ├── manifests/               Patient-disjoint split definitions
-│   └── normalization/           Locked train-only channel statistics
+│   ├── manifests/                Patient-disjoint split definitions
+│   └── normalization/
+│       ├── <family>/             Per-representation train-split statistics
+│       └── fusion/               12-channel fusion normalization statistics
 ├── notebooks/
-│   └── train_all_models.ipynb   End-to-end Colab reproduction
+│   └── train_all_models.ipynb    End-to-end Colab reproduction (incl. Ensemble²)
 ├── scripts/
 │   ├── 01_prepare_training.py
-│   └── 02_evaluate_and_analyze.py
-├── src/retinal_color_transfer/  Training and analysis package
-├── pyproject.toml               Dependencies and package configuration
+│   ├── 02_evaluate_and_analyze.py
+│   └── train_fusion12ch.py       Standalone Ensemble² training script
+├── src/retinal_color_transfer/   Training and analysis package
+├── pyproject.toml                Dependencies and package configuration
 └── README.md
 ```
 
