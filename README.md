@@ -12,13 +12,12 @@ models.
 
 ## Study Design
 
-The canonical study contains 24 models:
+The canonical study contains 21 models:
 
-- 20 representations trained with seed 42:
+- 17 representations trained with seed 42:
   - full `RGB`, `Lab`, `HSV`, and `YCrCb`
   - 12 single-channel ablations: `R`, `G`, `B`, `L`, `a`, `b`, `H`, `S`,
     `V`, `Y`, `Cr`, and `Cb`
-  - three predefined Custom3 hybrid representations
   - one grayscale structural control
 - four additional full-RGB models trained with seeds 43, 44, 45, and 46
 
@@ -154,21 +153,6 @@ additional information available to a single jointly-trained model. Late
 fusion via independent prediction averaging (Color4-42) remains the more
 effective combination strategy.
 
-### Custom3 hybrids
-
-The candidates were fixed before training. Each is a single three-channel
-tensor evaluated by one ResNet-50, not an ensemble.
-
-| Hybrid input | Validation MAE | Test MAE |
-| --- | ---: | ---: |
-| `[Lab-b, RGB-G, RGB-B]` | **5.3145** | **4.9753** |
-| `[Lab-b, RGB-G, HSV-S]` | 5.3560 | 5.0363 |
-| `[Lab-a, RGB-G, Lab-b]` | 5.3803 | 5.0752 |
-
-The first candidate is selected by validation MAE. It does not outperform RGB
-on test: RGB seed42 is better by 0.0686 years, and the paired image-bootstrap
-interval for a Custom3 improvement is `[-0.2250, 0.0870]`.
-
 ### Single-channel ablations
 
 Each selected channel is repeated three times to preserve the input shape
@@ -235,11 +219,11 @@ PYTHONPATH=src python3 scripts/01_prepare_training.py \
 The command:
 
 1. builds the prepared RGB cache;
-2. derives all full, single-channel, grayscale, and Custom3 caches;
+2. derives all full, single-channel, and grayscale caches;
 3. reuses valid cache entries;
 4. computes missing normalization statistics from the train split only;
 5. validates all 9,857 entries for every representation; and
-6. writes configs for the canonical 24 models under `configs/generated/`.
+6. writes configs for the canonical 21 models under `configs/generated/`.
 
 Generated artifacts follow the same family layout:
 

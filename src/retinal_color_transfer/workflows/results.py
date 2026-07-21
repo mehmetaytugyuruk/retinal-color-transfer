@@ -38,11 +38,6 @@ RGB4_COLUMNS = [
     "pred_rgb_seed46",
 ]
 MODEL_IDS = CANONICAL_MODEL_IDS
-CUSTOM3_COLUMNS = (
-    "pred_custom_lab_b_rgb_g_rgb_b",
-    "pred_custom_lab_b_rgb_g_hsv_s",
-    "pred_custom_lab_a_rgb_g_lab_b",
-)
 METRIC_COLUMNS = (
     "pred_dummy_train_mean",
     "pred_rgb",
@@ -65,7 +60,6 @@ METRIC_COLUMNS = (
     "pred_ycrcb_y",
     "pred_ycrcb_cr",
     "pred_ycrcb_cb",
-    *CUSTOM3_COLUMNS,
 )
 PREDICTION_ROLES = ("validation", "test")
 PREDICTION_COLUMNS = {
@@ -328,20 +322,6 @@ def _metric_rows(frame: pd.DataFrame, split: str) -> list[dict[str, object]]:
     return rows
 
 
-def _select_custom3(validation_frame: pd.DataFrame) -> tuple[str, float]:
-    y_true = validation_frame["age_true"].to_numpy(dtype=np.float64)
-    candidates = {
-        column: float(
-            np.mean(
-                np.abs(
-                    validation_frame[column].to_numpy(dtype=np.float64) - y_true
-                )
-            )
-        )
-        for column in CUSTOM3_COLUMNS
-    }
-    return min(candidates.items(), key=lambda item: (item[1], item[0]))
-
 
 def _paired_bootstrap(
     frame: pd.DataFrame,
@@ -487,13 +467,11 @@ def _comparison_rows(
     frame: pd.DataFrame,
     split: str,
     *,
-    selected_custom3_column: str,
     samples: int,
     seed: int,
 ) -> list[dict[str, object]]:
     pairs = [
         ("pred_rgb4_equal", "pred_color4_equal"),
-        ("pred_rgb", selected_custom3_column),
     ]
     return [
         {
@@ -571,16 +549,12 @@ def main() -> None:
         diagnostics.append(_split_diagnostics(frame, split))
         metrics.extend(_metric_rows(frame, split))
 
-    selected_custom3_column, selected_custom3_validation_mae = _select_custom3(
-        frames["validation"]
-    )
     comparisons = []
     for split, frame in frames.items():
         comparisons.extend(
             _comparison_rows(
                 frame,
                 split,
-                selected_custom3_column=selected_custom3_column,
                 samples=args.bootstrap_samples,
                 seed=args.seed + (100000 if split == "validation" else 0),
             )
@@ -615,11 +589,6 @@ def main() -> None:
         "prediction_actions": prediction_actions,
         "train_mean_age_baseline": train_mean_age,
         "split_patient_diagnostics": diagnostics,
-        "custom3_selection": {
-            "criterion": "lowest validation MAE",
-            "selected_model": _name(selected_custom3_column),
-            "validation_mae": selected_custom3_validation_mae,
-        },
         "validation_metrics": metrics_frame.query("split == 'validation'")
         .sort_values("mae")
         .to_dict(orient="records"),
@@ -642,7 +611,6 @@ def main() -> None:
         "rgb",
         "grayscale",
         "color4_equal",
-        _name(selected_custom3_column),
     ]
     selected_metrics = metrics_frame.loc[
         (metrics_frame["split"] == "test") & metrics_frame["model"].isin(selected)

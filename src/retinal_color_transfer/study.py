@@ -18,9 +18,6 @@ REPRESENTATIONS = (
     "ycrcb_y",
     "ycrcb_cr",
     "ycrcb_cb",
-    "custom_lab_b_rgb_g_rgb_b",
-    "custom_lab_b_rgb_g_hsv_s",
-    "custom_lab_a_rgb_g_lab_b",
 )
 
 EXTRA_RGB_SEEDS = (43, 44, 45, 46)

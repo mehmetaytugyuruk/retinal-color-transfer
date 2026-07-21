@@ -117,36 +117,6 @@ _CONTRACTS: dict[str, RepresentationContract] = {
     "ycrcb_y": _single_uint8_channel_contract("ycrcb_y", "repeated_OpenCV_Y", "Y"),
     "ycrcb_cr": _single_uint8_channel_contract("ycrcb_cr", "repeated_OpenCV_Cr", "Cr"),
     "ycrcb_cb": _single_uint8_channel_contract("ycrcb_cb", "repeated_OpenCV_Cb", "Cb"),
-    "custom_lab_b_rgb_g_rgb_b": RepresentationContract(
-        "custom_lab_b_rgb_g_rgb_b",
-        "uint8",
-        [0, 255],
-        "OpenCV_Lab_b__RGB_G__RGB_B",
-        ("Lab_b_encoded", "RGB_G", "RGB_B"),
-        ".png",
-        "uint8_divide_by_255",
-        (0.0, 1.0),
-    ),
-    "custom_lab_b_rgb_g_hsv_s": RepresentationContract(
-        "custom_lab_b_rgb_g_hsv_s",
-        "uint8",
-        [0, 255],
-        "OpenCV_Lab_b__RGB_G__OpenCV_HSV_S",
-        ("Lab_b_encoded", "RGB_G", "HSV_S"),
-        ".png",
-        "uint8_divide_by_255",
-        (0.0, 1.0),
-    ),
-    "custom_lab_a_rgb_g_lab_b": RepresentationContract(
-        "custom_lab_a_rgb_g_lab_b",
-        "uint8",
-        [0, 255],
-        "OpenCV_Lab_a__RGB_G__OpenCV_Lab_b",
-        ("Lab_a_encoded", "RGB_G", "Lab_b_encoded"),
-        ".png",
-        "uint8_divide_by_255",
-        (0.0, 1.0),
-    ),
 }
 
 

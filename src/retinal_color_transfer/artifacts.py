@@ -5,17 +5,14 @@ import json
 from collections.abc import Iterable
 from pathlib import Path
 
-MODEL_GROUPS = ("custom", "grayscale", "rgb", "lab", "hsv", "ycrcb")
+MODEL_GROUPS = ("grayscale", "rgb", "lab", "hsv", "ycrcb")
 
 
 def representation_family(name: str) -> str:
-    if name.startswith("custom_"):
-        return "custom"
-    for group in MODEL_GROUPS[1:]:
+    for group in MODEL_GROUPS:
         if name == group or name.startswith(f"{group}_"):
             return group
     raise ValueError(f"Unknown representation family for '{name}'")
-
 
 def model_group(model_id: str) -> str:
     return representation_family(model_id)

@@ -119,11 +119,6 @@ def validate_representation_config(cfg: RepresentationConfig) -> None:
         "ycrcb_cr",
         "ycrcb_cb",
     }
-    custom_representations = {
-        "custom_lab_b_rgb_g_rgb_b",
-        "custom_lab_b_rgb_g_hsv_s",
-        "custom_lab_a_rgb_g_lab_b",
-    }
     known = {
         "rgb",
         "grayscale",
@@ -131,7 +126,6 @@ def validate_representation_config(cfg: RepresentationConfig) -> None:
         "hsv",
         "ycrcb",
         *channel_ablation,
-        *custom_representations,
     }
     if cfg.name not in known:
         raise ConfigError(f"Unknown representation '{cfg.name}'")
@@ -142,7 +136,6 @@ def validate_representation_config(cfg: RepresentationConfig) -> None:
         "hsv",
         "ycrcb",
         *channel_ablation,
-        *custom_representations,
     } and cfg.params:
         raise ConfigError(f"{cfg.name} does not accept representation parameters")
 

@@ -25,12 +25,6 @@ _CHANNEL_REPRESENTATIONS: dict[str, tuple[int | None, int]] = {
     "ycrcb_cb": (cv2.COLOR_RGB2YCrCb, 2),
 }
 
-_CUSTOM_REPRESENTATIONS: dict[str, tuple[tuple[str, int], ...]] = {
-    "custom_lab_b_rgb_g_rgb_b": (("lab", 2), ("rgb", 1), ("rgb", 2)),
-    "custom_lab_b_rgb_g_hsv_s": (("lab", 2), ("rgb", 1), ("hsv", 1)),
-    "custom_lab_a_rgb_g_lab_b": (("lab", 1), ("rgb", 1), ("lab", 2)),
-}
-
 
 def _check_rgb(rgb: np.ndarray) -> None:
     if rgb.ndim != 3 or rgb.shape[2] != 3 or rgb.dtype != np.uint8:
@@ -53,19 +47,6 @@ def convert_representation(rgb: np.ndarray, cfg: RepresentationConfig) -> np.nda
         conversion_code, channel_index = _CHANNEL_REPRESENTATIONS[cfg.name]
         converted = rgb if conversion_code is None else cv2.cvtColor(rgb, conversion_code)
         return _repeat_channel(converted[:, :, channel_index])
-    if cfg.name in _CUSTOM_REPRESENTATIONS:
-        sources = {
-            "rgb": rgb,
-            "lab": cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB),
-            "hsv": cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV),
-        }
-        return np.stack(
-            [
-                sources[source][:, :, channel_index]
-                for source, channel_index in _CUSTOM_REPRESENTATIONS[cfg.name]
-            ],
-            axis=2,
-        )
     if cfg.name == "lab":
         return cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB)
     if cfg.name == "hsv":
