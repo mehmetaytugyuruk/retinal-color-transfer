@@ -3,11 +3,17 @@ Generate figure assets for the color-space visualization figures.
 
 Produces two groups of images from a single retinal fundus PNG:
 
-  Group 1 — false-color composites (assets/group1_false_color/)
-    Each color space's 3 channels are placed directly into R,G,B slots and
-    saved as a colour image.  The result is a "false-colour" render that looks
-    unnatural but faithfully represents the raw channel values as stored by
-    OpenCV.  This is the standard display convention for non-RGB spaces.
+  Group 1 — pseudo-color composites (assets/group1_false_color/)
+    The three encoded channels of each color space are mapped to the red, green,
+    and blue display channels, respectively, to construct a pseudo-color image.
+    Channel assignment:
+
+        HSV   : H → R,  S  → G,  V  → B
+        CIELAB: L → R,  a  → G,  b  → B
+        YCrCb : Y → R,  Cr → G,  Cb → B
+
+    The displayed colors do not represent natural retinal colors.  They are
+    intended only to visualize differences in channel encoding.
 
   Group 2 — single-channel grayscale (assets/group2_channels/)
     Each individual channel is saved as a grayscale image so that its
@@ -27,10 +33,15 @@ Preprocessing applied to every output image
 Channel-range notes
 -------------------
 All channels are stored in [0, 255] by OpenCV *except* HSV-H, which uses
-[0, 179].  Only HSV-H is stretched to [0, 255] using the fixed theoretical
-range (H_display = H × 255/179).  Per-image auto-contrast is intentionally
-avoided: it would misrepresent low-variance channels (e.g. H, which carries
-little retinal information) as artificially rich in detail.
+[0, 179].  Only HSV-H is linearly mapped from its fixed OpenCV range [0, 179]
+to the display range [0, 255]:
+
+    H_display = H × 255 / 179
+
+Per-image auto-contrast (min-max normalization) is intentionally avoided: it
+would misrepresent low-variance channels (e.g. H, which carries little retinal
+discriminative information) as artificially detail-rich — contradicting the
+quantitative MAE results.
 
 Usage
 -----
@@ -65,20 +76,39 @@ def _bg_mask(bgr: np.ndarray) -> np.ndarray:
     return bgr.max(axis=2) < BG_THRESHOLD
 
 
-def _save_3ch(img: np.ndarray, mask_bg: np.ndarray,
-              crop: tuple[int, int, int, int], path: Path) -> None:
+def _save_false_color(
+    channels_rgb: np.ndarray,
+    mask_bg: np.ndarray,
+    crop: tuple[int, int, int, int],
+    path: Path,
+) -> None:
+    """Save a pseudo-color composite.
+
+    `channels_rgb` is treated as an RGB array: channel 0 → Red display,
+    channel 1 → Green display, channel 2 → Blue display.
+    cv2.imwrite expects BGR, so a COLOR_RGB2BGR conversion is applied before
+    writing.
+    """
+    x, y, w, h = crop
+    out = channels_rgb.copy()
+    out[mask_bg] = 0
+    cropped_bgr = cv2.cvtColor(out[y:y + h, x:x + w], cv2.COLOR_RGB2BGR)
+    if not cv2.imwrite(str(path), cropped_bgr):
+        raise OSError(f"Could not write image: {path}")
+
+
+def _save_1ch(
+    img: np.ndarray,
+    mask_bg: np.ndarray,
+    crop: tuple[int, int, int, int],
+    path: Path,
+) -> None:
+    """Save a single-channel grayscale image."""
     x, y, w, h = crop
     out = img.copy()
     out[mask_bg] = 0
-    cv2.imwrite(str(path), out[y:y + h, x:x + w])
-
-
-def _save_1ch(img: np.ndarray, mask_bg: np.ndarray,
-              crop: tuple[int, int, int, int], path: Path) -> None:
-    x, y, w, h = crop
-    out = img.copy()
-    out[mask_bg] = 0
-    cv2.imwrite(str(path), out[y:y + h, x:x + w])
+    if not cv2.imwrite(str(path), out[y:y + h, x:x + w]):
+        raise OSError(f"Could not write image: {path}")
 
 
 def generate(source: Path, output_root: Path) -> None:
@@ -88,34 +118,40 @@ def generate(source: Path, output_root: Path) -> None:
 
     print(f"Source : {source}  shape={bgr.shape}")
 
-    crop   = _compute_crop_box(bgr)
+    crop    = _compute_crop_box(bgr)
     mask_bg = _bg_mask(bgr)
     x, y, w, h = crop
     print(f"Crop   : x={x} y={y} w={w} h={h}  →  output size {h}×{w}")
 
     # Colour-space conversions
+    rgb   = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
     lab   = cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB)
     hsv   = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
     ycrcb = cv2.cvtColor(bgr, cv2.COLOR_BGR2YCrCb)
     gray  = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
 
-    # HSV-H: fixed theoretical-range stretch [0,179] → [0,255]
-    h_stretched = (hsv[:, :, 0].astype(np.float32) * 255.0 / 179.0
-                   ).clip(0, 255).astype(np.uint8)
+    # HSV-H: fixed theoretical-range mapping [0, 179] → [0, 255]
+    h_stretched = (
+        hsv[:, :, 0].astype(np.float32) * 255.0 / 179.0
+    ).clip(0, 255).astype(np.uint8)
 
-    # HSV false-colour composite with stretched H
-    hsv_fc = hsv.copy()
-    hsv_fc[:, :, 0] = h_stretched
+    # Pseudo-color composites with explicit channel assignment:
+    #   HSV:   H → R, S  → G, V  → B
+    #   Lab:   L → R, a  → G, b  → B
+    #   YCrCb: Y → R, Cr → G, Cb → B
+    hsv_fc   = cv2.merge((h_stretched, hsv[:, :, 1],   hsv[:, :, 2]))
+    lab_fc   = cv2.merge((lab[:, :, 0],   lab[:, :, 1],   lab[:, :, 2]))
+    ycrcb_fc = cv2.merge((ycrcb[:, :, 0], ycrcb[:, :, 1], ycrcb[:, :, 2]))
 
-    # ── Group 1: false-colour composites ──────────────────────────────────
+    # ── Group 1: pseudo-color composites ──────────────────────────────────
     g1 = output_root / "group1_false_color"
     g1.mkdir(parents=True, exist_ok=True)
 
-    _save_3ch(bgr,     mask_bg, crop, g1 / "rgb.png")
-    _save_3ch(lab,     mask_bg, crop, g1 / "lab.png")
-    _save_3ch(hsv_fc,  mask_bg, crop, g1 / "hsv.png")
-    _save_3ch(ycrcb,   mask_bg, crop, g1 / "ycrcb.png")
-    _save_1ch(gray,    mask_bg, crop, g1 / "gray.png")
+    _save_false_color(rgb,      mask_bg, crop, g1 / "rgb.png")
+    _save_1ch        (gray,     mask_bg, crop, g1 / "gray.png")
+    _save_false_color(lab_fc,   mask_bg, crop, g1 / "lab.png")
+    _save_false_color(hsv_fc,   mask_bg, crop, g1 / "hsv.png")
+    _save_false_color(ycrcb_fc, mask_bg, crop, g1 / "ycrcb.png")
 
     print("Group 1 written ✓")
 
@@ -123,18 +159,18 @@ def generate(source: Path, output_root: Path) -> None:
     g2 = output_root / "group2_channels"
     g2.mkdir(parents=True, exist_ok=True)
 
-    _save_1ch(bgr[:, :, 2],   mask_bg, crop, g2 / "rgb_r.png")
-    _save_1ch(bgr[:, :, 1],   mask_bg, crop, g2 / "rgb_g.png")
-    _save_1ch(bgr[:, :, 0],   mask_bg, crop, g2 / "rgb_b.png")
-    _save_1ch(lab[:, :, 0],   mask_bg, crop, g2 / "lab_l.png")
-    _save_1ch(lab[:, :, 1],   mask_bg, crop, g2 / "lab_a.png")
-    _save_1ch(lab[:, :, 2],   mask_bg, crop, g2 / "lab_b.png")
-    _save_1ch(h_stretched,    mask_bg, crop, g2 / "hsv_h.png")
-    _save_1ch(hsv[:, :, 1],   mask_bg, crop, g2 / "hsv_s.png")
-    _save_1ch(hsv[:, :, 2],   mask_bg, crop, g2 / "hsv_v.png")
-    _save_1ch(ycrcb[:, :, 0], mask_bg, crop, g2 / "ycrcb_y.png")
-    _save_1ch(ycrcb[:, :, 1], mask_bg, crop, g2 / "ycrcb_cr.png")
-    _save_1ch(ycrcb[:, :, 2], mask_bg, crop, g2 / "ycrcb_cb.png")
+    _save_1ch(rgb[:, :, 0],    mask_bg, crop, g2 / "rgb_r.png")
+    _save_1ch(rgb[:, :, 1],    mask_bg, crop, g2 / "rgb_g.png")
+    _save_1ch(rgb[:, :, 2],    mask_bg, crop, g2 / "rgb_b.png")
+    _save_1ch(lab[:, :, 0],    mask_bg, crop, g2 / "lab_l.png")
+    _save_1ch(lab[:, :, 1],    mask_bg, crop, g2 / "lab_a.png")
+    _save_1ch(lab[:, :, 2],    mask_bg, crop, g2 / "lab_b.png")
+    _save_1ch(h_stretched,     mask_bg, crop, g2 / "hsv_h.png")
+    _save_1ch(hsv[:, :, 1],    mask_bg, crop, g2 / "hsv_s.png")
+    _save_1ch(hsv[:, :, 2],    mask_bg, crop, g2 / "hsv_v.png")
+    _save_1ch(ycrcb[:, :, 0],  mask_bg, crop, g2 / "ycrcb_y.png")
+    _save_1ch(ycrcb[:, :, 1],  mask_bg, crop, g2 / "ycrcb_cr.png")
+    _save_1ch(ycrcb[:, :, 2],  mask_bg, crop, g2 / "ycrcb_cb.png")
 
     print("Group 2 written ✓")
     print(f"All assets in: {output_root}")

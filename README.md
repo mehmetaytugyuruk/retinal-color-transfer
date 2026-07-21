@@ -204,22 +204,31 @@ The script `scripts/generate_figure_assets.py` reproduces the color-space
 visualization figures from a single retinal fundus image.
 
 ```bash
-PYTHONPATH=src python3 scripts/generate_figure_assets.py --source img00007.png
+python3 scripts/generate_figure_assets.py --source img00007.png
 ```
 
 This writes two groups under `assets/` (git-ignored):
 
 | Group | Directory | Contents |
 | --- | --- | --- |
-| False-color composites | `assets/group1_false_color/` | `rgb`, `lab`, `hsv`, `ycrcb`, `gray` |
+| Pseudo-color composites | `assets/group1_false_color/` | `rgb`, `lab`, `hsv`, `ycrcb`, `gray` |
 | Single-channel grayscale | `assets/group2_channels/` | `rgb_r/g/b`, `lab_l/a/b`, `hsv_h/s/v`, `ycrcb_y/cr/cb` |
 
 **Technique:**
 
-- **Group 1 (false-color):** each color space's 3 channels are placed directly
-  into R, G, B display slots without any reinterpretation. The result looks
-  unnatural by design — this is the standard display convention for non-RGB
-  spaces (cf. OpenCV documentation).
+- **Group 1 (pseudo-color composites):** the three encoded channels of each
+  color space are mapped to the red, green, and blue display channels,
+  respectively. Channel assignment:
+
+  | Color space | Ch 0 → Red | Ch 1 → Green | Ch 2 → Blue |
+  | --- | --- | --- | --- |
+  | HSV | H | S | V |
+  | CIELAB | L | a | b |
+  | YCrCb | Y | Cr | Cb |
+
+  The displayed colors do not represent natural retinal colors; they provide a
+  consistent pseudo-color visualization of the encoded channels.
+
 - **Group 2 (grayscale):** each channel is saved individually as a grayscale
   image so its information content can be assessed independently.
 
@@ -228,7 +237,7 @@ This writes two groups under `assets/` (git-ignored):
 1. **Background mask** — pixels where `max(B,G,R) < 10` in the original image
    are forced to black after conversion, preventing Lab/YCrCb encoding
    artefacts (the a/b offset of 128 would otherwise turn black pixels
-   green/grey in false-color renders).
+   green/grey in pseudo-color renders).
 2. **Crop** — the bounding rectangle of non-background pixels is computed once
    from the original BGR image (threshold = 25, matching
    `preprocessing/crop_pad_resize.py`) and applied to every output. No resize
@@ -237,7 +246,7 @@ This writes two groups under `assets/` (git-ignored):
 **Channel range decisions:**
 
 All OpenCV 8-bit channels occupy `[0, 255]` except HSV-H which uses `[0, 179]`.
-Only HSV-H is stretched using its fixed theoretical range:
+Only HSV-H is linearly mapped from its fixed OpenCV range to the display range:
 
 ```python
 H_display = (H.astype(float) * 255.0 / 179.0).astype('uint8')
