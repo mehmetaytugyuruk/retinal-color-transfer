@@ -6,7 +6,6 @@ from copy import deepcopy
 from pathlib import Path
 
 from retinal_color_transfer.artifacts import (
-    representation_family,
     resolve_cache_dir,
     resolve_model_dir,
     resolve_normalization_path,
@@ -186,7 +185,6 @@ def build_experiment_config(
 ) -> dict:
     config = deepcopy(load_yaml(TEMPLATE_CONFIG))
     model_name = f"{representation}_seed{seed}"
-    family = representation_family(representation)
     config["experiment"]["name"] = model_name
     config["experiment"]["output_dir"] = str(resolve_model_dir(model_root, model_name))
     config["data"]["data_root"] = str(data_root)
@@ -265,8 +263,11 @@ def write_experiment_configs(
         dump_yaml(config, output)
         paths.append(output)
         print(f"Wrote {output}")
-    if len(paths) != 24:
-        raise RuntimeError(f"Expected 24 experiment configs, wrote {len(paths)}")
+    expected_count = len(CANONICAL_MODELS)
+    if len(paths) != expected_count:
+        raise RuntimeError(
+            f"Expected {expected_count} experiment configs, wrote {len(paths)}"
+        )
     return paths
 
 

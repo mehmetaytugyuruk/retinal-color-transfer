@@ -1,5 +1,9 @@
 # Color-Space Diversity for Retinal Age Estimation
 
+**Repository guide:** [Overview](#overview) · [Study design](#study-design) · [Results](#primary-results) · [Reproduction](#reproducing-the-study) · [Structure](#repository-structure)
+
+## Overview
+
 This repository contains the reproducible training and analysis workflow for a
 study of color representations in retinal fundus age estimation. All models use
 the same patient-disjoint data splits, ImageNet-pretrained ResNet-50
@@ -63,7 +67,7 @@ study, provide the same source dataset with paths matching the manifests:
 
 ## Training Protocol
 
-All 24 canonical models use:
+All 21 canonical models use:
 
 - ImageNet-pretrained ResNet-50, fully fine-tuned
 - 80 epochs and batch size 32
@@ -140,7 +144,7 @@ No non-RGB full representation outperforms RGB on the test split.
 
 A single ResNet-50 trained on all four color spaces concatenated into a
 12-channel input tensor, using the same training protocol as the canonical
-24 models (seed 42, ReduceLROnPlateau, 80 epochs).
+21 canonical models (seed 42, ReduceLROnPlateau, 80 epochs).
 
 | Model | Validation MAE | Test MAE |
 | --- | ---: | ---: |
@@ -299,7 +303,7 @@ Use [`notebooks/train_all_models.ipynb`](notebooks/train_all_models.ipynb) in a
 GPU-enabled Colab runtime. Set its repository URL, raw-data root, and persistent
 Drive run root, then use **Run all**.
 
-The notebook validates the raw data, runs preparation, verifies the 24 generated
+The notebook validates the raw data, runs preparation, verifies the 21 generated
 configs, trains every canonical model, resumes an interrupted model from
 `latest_checkpoint.pt`, skips completed models, and runs final analysis.
 
